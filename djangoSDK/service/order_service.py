@@ -22,3 +22,17 @@ class OrderService:
             error_code = None
             if ab.get_errors() and "errors" in ab.raw_response:
                 error_code = ab.raw_response["errors"][0].get("code", None)
+
+    def order_usage_add(self, request_data):
+        sdk = self.exsited_service.get_sdk()
+
+        try:
+            print(request_data.usage.chargeItemUuid)
+            response = sdk.order.add_usage(request_data=request_data)
+            print(request_data.usage.chargeItemUuid)
+            # print(response)
+            return response
+        except ABException as ab:
+            print(ab)
+            print(ab.get_errors())
+            print(ab.raw_response)

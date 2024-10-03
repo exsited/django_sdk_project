@@ -4,6 +4,7 @@ import calendar
 
 from ab_py.common.ab_exception import ABException
 from ab_py.exsited.exsited_sdk import ExsitedSDK
+from ab_py.exsited.order.dto.usage_dto import UsageCreateDTO, UsageDataDTO
 from service.exsited_service import ExsitedService
 from service.order_service import OrderService
 from tests.common.common_data import CommonData
@@ -11,10 +12,10 @@ from tests.common.common_data import CommonData
 
 def connect_to_db():
     return MySQLdb.connect(
-        host="",
-        user="",
+        host="127.0.0.1",
+        user="root",
         passwd="",
-        db=""
+        db="call_service_proposed_database_schema"
     )
 
 
@@ -25,6 +26,20 @@ def calculate_charging_period(start_date):
 
     charging_period = f"{start_of_month.strftime('%Y-%m-%d')}-{end_of_month.strftime('%Y-%m-%d')}"
     return charging_period, start_of_month, end_of_month
+
+
+def create_usage_dto(charge_item_uuid: str, quantity: str, start_time: str, end_time: str, charging_period: str):
+    usage_data = UsageCreateDTO(
+        usage=UsageDataDTO(chargeItemUuid=charge_item_uuid,
+                           quantity=quantity,
+                           startTime=start_time,
+                           endTime=end_time,
+                           type="INCREMENTAL",
+                           chargingPeriod=charging_period
+                           )
+        )
+
+    return usage_data
 
 
 def fetch_call_usage():
@@ -46,6 +61,12 @@ def fetch_call_usage():
             charge_item_uuid = order_service.get_charge_item_uuid_by_order_id(order_id, item_name)
             charging_period, start_of_month, end_of_month = calculate_charging_period(call_start)
 
+            call_usage_data = create_usage_dto(charge_item_uuid=charge_item_uuid, quantity="1",
+                                               start_time=call_start.strftime('%Y-%m-%d %H:%M:%S'),
+                                               end_time=call_end.strftime('%Y-%m-%d %H:%M:%S'),
+                                               charging_period=charging_period)
+
+            order_service.order_usage_add(call_usage_data)
             call_usage_entry = {
                 "charge_item_uuid": charge_item_uuid,
                 "quantity": 1,
@@ -81,6 +102,12 @@ def fetch_message_usage():
 
             charge_item_uuid = order_service.get_charge_item_uuid_by_order_id(order_id, item_name)
             charging_period, start_of_month, end_of_month = calculate_charging_period(billing_period)
+
+            message_usage_data = create_usage_dto(charge_item_uuid=charge_item_uuid, quantity=str(billable_messages),
+                                                  start_time=start_of_month.strftime('%Y-%m-%d %H:%M:%S'),
+                                                  end_time=end_of_month.strftime('%Y-%m-%d %H:%M:%S'),
+                                                  charging_period=charging_period)
+            order_service.order_usage_add(message_usage_data)
 
             message_usage_entry = {
                 "charge_item_uuid": charge_item_uuid,

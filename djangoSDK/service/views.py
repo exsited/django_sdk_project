@@ -14,7 +14,6 @@ from .utils import fetch_call_usage, fetch_message_usage
 @api_view(['GET'])
 def call_usage(request):
     call_usage_data = fetch_call_usage()
-
     return JsonResponse({"status": "success", "usage:": call_usage_data}, safe=False)
 
 
