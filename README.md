@@ -37,7 +37,7 @@ First, clone the Django SDK project repository from GitHub & navigate into the d
 git clone https://github.com/exsited/django_sdk_project.git
 
 # navigate into the directory
-cd djnago_sdk_project/djangoSDK
+cd django_sdk_project/djangoSDK
 
 ```
 
