@@ -11,10 +11,10 @@ from tests.common.common_data import CommonData
 
 def connect_to_db():
     return MySQLdb.connect(
-        host="127.0.0.1",
-        user="root",
+        host="",
+        user="",
         passwd="",
-        db="call_service_proposed_database_schema"
+        db=""
     )
 
 
@@ -43,7 +43,6 @@ def fetch_call_usage():
         for row in rows:
             call_id, call_start, call_duration, call_destination, call_type, item_name, order_id = row
             call_end = call_start + timedelta(seconds=call_duration)
-            print(order_id)
             charge_item_uuid = order_service.get_charge_item_uuid_by_order_id(order_id, item_name)
             charging_period, start_of_month, end_of_month = calculate_charging_period(call_start)
 

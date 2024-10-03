@@ -13,7 +13,6 @@ class OrderService:
         sdk = self.exsited_service.get_sdk()
         try:
             response = sdk.order.details(id=order_id)
-            print(response)
             if response.order:
                 for line in response.order.lines:
                     if line.itemName == item_name:

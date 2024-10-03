@@ -15,7 +15,6 @@ from .utils import fetch_call_usage, fetch_message_usage
 def call_usage(request):
     call_usage_data = fetch_call_usage()
 
-    # Return the data as JSON
     return JsonResponse({"status": "success", "usage:": call_usage_data}, safe=False)
 
 
