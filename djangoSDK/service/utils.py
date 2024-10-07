@@ -82,9 +82,6 @@ def fetch_call_usage():
                                                end_time=call_end.strftime('%Y-%m-%d %H:%M:%S'),
                                                charging_period=charging_period)
 
-           
-
-
             response = order_service.order_usage_add(call_usage_data)
             call_usage_entry = {
                 "charge_item_uuid": charge_item_uuids[(order_id, item_name)],
@@ -93,7 +90,7 @@ def fetch_call_usage():
                 "end_time": call_end.strftime('%Y-%m-%d %H:%M:%S'),
                 "type": "INCREMENTAL",
                 "charging_period": charging_period,
-                "response": asdict(response)
+                "response": response
             }
 
             call_usage_list.append(call_usage_entry)
@@ -129,14 +126,17 @@ def fetch_message_usage():
         message_usage_list = []
         for row in rows:
             message_id, billing_period, billable_messages, item_name, order_id = row
-
-            charge_item_uuid = order_service.get_charge_item_uuid_by_order_id(order_id, item_name)
             charging_period = calculate_charging_period(billing_period)
 
             message_usage_data = create_usage_dto(charge_item_uuid=charge_item_uuids[(order_id, item_name)],
                                                   quantity=str(billable_messages),
                                                   start_time=billing_period.strftime('%Y-%m-%d %H:%M:%S'),
-                                                  end_time=billing_period.strftime('%Y-%m-%d %H:%M:%S'),
+                                                  end_time=datetime(
+                                                      billing_period.year,
+                                                      billing_period.month,
+                                                      billing_period.day,
+                                                      23, 59, 59
+                                                  ).strftime('%Y-%m-%d %H:%M:%S'),
                                                   charging_period=charging_period)
             response = order_service.order_usage_add(message_usage_data)
 
@@ -147,7 +147,7 @@ def fetch_message_usage():
                 "end_time": billing_period.strftime('%Y-%m-%d %H:%M:%S'),
                 "type": "INCREMENTAL",
                 "charging_period": charging_period,
-                "response":  asdict(response)
+                "response": response
             }
 
             message_usage_list.append(message_usage_entry)

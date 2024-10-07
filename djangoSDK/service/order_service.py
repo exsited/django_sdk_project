@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from ab_py.common.ab_exception import ABException
 from ab_py.exsited.exsited_sdk import ExsitedSDK
 from service.exsited_service import ExsitedService
@@ -29,7 +31,7 @@ class OrderService:
         try:
             response = sdk.order.add_usage(request_data=request_data)
             if response:
-                return response
+                return asdict(response)
             else:
                 return "error"
         except ABException as ab:

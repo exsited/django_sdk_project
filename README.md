@@ -154,6 +154,80 @@ Finally, navigate to the "djangoSDK" directory and run the Django development se
 ```bash
 python manage.py runserver
 ```
+### 9. API Endpoints for Usage Data
+This Django project provides two API endpoints to manage call and message usage data. These endpoints allow the project to retrieve data from the database and create usage records using the integrated SDK.
+
+#### /create/usage/call/
+ 
+- Calls the call_usage function, which fetches call usage data from the CallUsage table.
+- Retrieves chargeItemUuid by calling the get_charge_item_uuid_by_order_id function using orderId and itemName.
+- Uses order_usage_add to add the usage data to the exsited system via the SDK.
+
+#### /create/usage/message/
+
+- triggers the message_usage function, which retrieves message usage data from the MessageUsage table.
+- Retrieves chargeItemUuid by calling the get_charge_item_uuid_by_order_id function using orderId and itemName.
+- Uses order_usage_add to add the usage data to the exsited system via the SDK.
+
+Both URLs are POST methods and are used to fetch the relevant usage data from the database and create new usage entries via the SDK.
+
+
+### 10. OrderService (Getting and Posting Data via SDK)
+The OrderService class is an important component for handling order and usage data via the Exsited SDK. It contains two primary methods:
+
+#### get_charge_item_uuid_by_order_id
+```python
+    def get_charge_item_uuid_by_order_id(self, order_id, item_name):
+        sdk = self.exsited_service.get_sdk()
+        try:
+            response = sdk.order.details(id=order_id)
+            if response.order:
+                for line in response.order.lines:
+                    if line.itemName == item_name:
+                        return line.chargeItemUuid
+            return None
+        except ABException as ab:
+            error_code = None
+            if ab.get_errors() and "errors" in ab.raw_response:
+                error_code = ab.raw_response["errors"][0].get("code", None)
+```
+This method retrieves the chargeItemUuid associated with a specific order and item. It interacts with the SDK by fetching order details using the order_id and finding the relevant charge item within the order's line items. The chargeItemUuid is crucial for linking usage records to specific items within an order.
+
+#### order_usage_add
+
+```python
+        def order_usage_add(self, request_data):
+        sdk = self.exsited_service.get_sdk()
+
+        try:
+            response = sdk.order.add_usage(request_data=request_data)
+            if response:
+                return asdict(response)
+            else:
+                return "error"
+        except ABException as ab:
+            error_code = None
+            if ab.get_errors() and "errors" in ab.raw_response:
+                error_code = ab.raw_response["errors"][0]
+            return error_code    def order_usage_add(self, request_data):
+        sdk = self.exsited_service.get_sdk()
+
+        try:
+            response = sdk.order.add_usage(request_data=request_data)
+            if response:
+                return asdict(response)
+            else:
+                return "error"
+        except ABException as ab:
+            error_code = None
+            if ab.get_errors() and "errors" in ab.raw_response:
+                error_code = ab.raw_response["errors"][0]
+            return error_code
+```
+      
+This method posts usage data to the SDK. It takes usage information (such as start and end times, quantity, and the charge item UUID) and sends it to the SDK as part of the order's usage record. This allows the Django app to submit usage data to external systems for billing, tracking, or reporting purposes.
+
+In summary, OrderService serves as the link between the Django application and the SDK for fetching and submitting usage data related to orders, ensuring smooth integration with external order management systems.
 
 ## Conclusion
 
