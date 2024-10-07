@@ -20,17 +20,14 @@ def connect_to_db():
 
 
 def calculate_charging_period(start_date):
-    # Calculate the end date by adding one month to the start date
     next_month = start_date.month + 1 if start_date.month < 12 else 1
     next_year = start_date.year if start_date.month < 12 else start_date.year + 1
 
-    # Handle edge cases where the next month has fewer days (e.g., February 30th)
     last_day_of_next_month = calendar.monthrange(next_year, next_month)[1]
     end_day = min(start_date.day, last_day_of_next_month)
 
     end_of_period = datetime(next_year, next_month, end_day) - timedelta(days=1)
 
-    # Return only the charging period string
     charging_period = f"{start_date.strftime('%Y-%m-%d')}-{end_of_period.strftime('%Y-%m-%d')}"
     return charging_period
 
