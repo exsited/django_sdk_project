@@ -11,15 +11,15 @@ from tests.common.common_data import CommonData
 from .utils import fetch_call_usage, fetch_message_usage
 
 
-@api_view(['GET'])
+@api_view(['POST'])
 def call_usage(request):
     call_usage_data = fetch_call_usage()
     return JsonResponse({"status": "success", "usage:": call_usage_data}, safe=False)
 
 
-@api_view(['GET'])
+@api_view(['POST'])
 def message_usage(request):
     message_usage_data = fetch_message_usage()
-    return JsonResponse(message_usage_data, safe=False)
+    return JsonResponse({"status": "success", "usage:": message_usage_data}, safe=False)
 
 

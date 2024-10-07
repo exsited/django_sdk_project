@@ -1,3 +1,4 @@
+from dataclasses import asdict
 import MySQLdb
 from datetime import timedelta, datetime
 import calendar
@@ -12,10 +13,10 @@ from tests.common.common_data import CommonData
 
 def connect_to_db():
     return MySQLdb.connect(
-        host="127.0.0.1",
-        user="root",
+        host="",
+        user="",
         passwd="",
-        db="call_service_proposed_database_schema"
+        db=""
     )
 
 
@@ -54,30 +55,40 @@ def fetch_call_usage():
         cursor.execute(
             "SELECT CallID, CallStart, CallDurationSec, CallDestination, CallType, ItemName, OrderID FROM CallUsage")
         rows = cursor.fetchall()
+        unique_orders = set()
 
         exsited_service = ExsitedService()
         order_service = OrderService(exsited_service)
+
+        for row in rows:
+            call_id, call_start, call_duration, call_destination, call_type, item_name, order_id = row
+            unique_orders.add((order_id, item_name))
+
+        charge_item_uuids = {}
+        for order_id, item_name in unique_orders:
+            charge_item_uuid = order_service.get_charge_item_uuid_by_order_id(order_id, item_name)
+            charge_item_uuids[(order_id, item_name)] = charge_item_uuid
 
         call_usage_list = []
         for row in rows:
             call_id, call_start, call_duration, call_destination, call_type, item_name, order_id = row
             call_end = call_start + timedelta(seconds=call_duration)
-            charge_item_uuid = order_service.get_charge_item_uuid_by_order_id(order_id, item_name)
             charging_period = calculate_charging_period(call_start)
 
-            call_usage_data = create_usage_dto(charge_item_uuid=charge_item_uuid, quantity="1",
+            call_usage_data = create_usage_dto(charge_item_uuid=charge_item_uuids[(order_id, item_name)], quantity="1",
                                                start_time=call_start.strftime('%Y-%m-%d %H:%M:%S'),
                                                end_time=call_end.strftime('%Y-%m-%d %H:%M:%S'),
                                                charging_period=charging_period)
 
-            order_service.order_usage_add(call_usage_data)
+            response = order_service.order_usage_add(call_usage_data)
             call_usage_entry = {
-                "charge_item_uuid": charge_item_uuid,
+                "charge_item_uuid": charge_item_uuids[(order_id, item_name)],
                 "quantity": 1,
                 "start_time": call_start.strftime('%Y-%m-%d %H:%M:%S'),
                 "end_time": call_end.strftime('%Y-%m-%d %H:%M:%S'),
                 "type": "INCREMENTAL",
-                "charging_period": charging_period
+                "charging_period": charging_period,
+                "response": asdict(response)
             }
 
             call_usage_list.append(call_usage_entry)
@@ -96,9 +107,19 @@ def fetch_message_usage():
     try:
         cursor.execute("SELECT ID, BillingPeriod, BillableMessages, ItemName, OrderID FROM MessageUsage")
         rows = cursor.fetchall()
+        unique_orders = set()
 
         exsited_service = ExsitedService()
         order_service = OrderService(exsited_service)
+
+        for row in rows:
+            message_id, billing_period, billable_messages, item_name, order_id = row
+            unique_orders.add((order_id, item_name))
+
+        charge_item_uuids = {}
+        for order_id, item_name in unique_orders:
+            charge_item_uuid = order_service.get_charge_item_uuid_by_order_id(order_id, item_name)
+            charge_item_uuids[(order_id, item_name)] = charge_item_uuid
 
         message_usage_list = []
         for row in rows:
@@ -107,19 +128,21 @@ def fetch_message_usage():
             charge_item_uuid = order_service.get_charge_item_uuid_by_order_id(order_id, item_name)
             charging_period = calculate_charging_period(billing_period)
 
-            message_usage_data = create_usage_dto(charge_item_uuid=charge_item_uuid, quantity=str(billable_messages),
+            message_usage_data = create_usage_dto(charge_item_uuid=charge_item_uuids[(order_id, item_name)],
+                                                  quantity=str(billable_messages),
                                                   start_time=billing_period.strftime('%Y-%m-%d %H:%M:%S'),
                                                   end_time=billing_period.strftime('%Y-%m-%d %H:%M:%S'),
                                                   charging_period=charging_period)
-            order_service.order_usage_add(message_usage_data)
+            response = order_service.order_usage_add(message_usage_data)
 
             message_usage_entry = {
-                "charge_item_uuid": charge_item_uuid,
+                "charge_item_uuid": charge_item_uuids[(order_id, item_name)],
                 "quantity": billable_messages,
                 "start_time": billing_period.strftime('%Y-%m-%d %H:%M:%S'),
                 "end_time": billing_period.strftime('%Y-%m-%d %H:%M:%S'),
                 "type": "INCREMENTAL",
-                "charging_period": charging_period
+                "charging_period": charging_period,
+                "response":  asdict(response)
             }
 
             message_usage_list.append(message_usage_entry)
