@@ -40,14 +40,24 @@ def fetch_call_usage():
         order_service = OrderService(exsited_service)
 
         call_usage_list = []
+        unique_orders = set()
+
+        for row in rows:
+            call_id, call_start, call_duration, call_destination, call_type, item_name, order_id = row
+            unique_orders.add((order_id, item_name))
+
+        charge_item_uuids = {}
+        for order_id, item_name in unique_orders:
+            charge_item_uuid = order_service.get_charge_item_uuid_by_order_id(order_id, item_name)
+            charge_item_uuids[(order_id, item_name)] = charge_item_uuid
+
         for row in rows:
             call_id, call_start, call_duration, call_destination, call_type, item_name, order_id = row
             call_end = call_start + timedelta(seconds=call_duration)
-            charge_item_uuid = order_service.get_charge_item_uuid_by_order_id(order_id, item_name)
             charging_period, start_of_month, end_of_month = calculate_charging_period(call_start)
 
             call_usage_entry = {
-                "charge_item_uuid": charge_item_uuid,
+                "charge_item_uuid": charge_item_uuids[(order_id, item_name)],
                 "quantity": 1,
                 "start_time": call_start.strftime('%Y-%m-%d %H:%M:%S'),
                 "end_time": call_end.strftime('%Y-%m-%d %H:%M:%S'),
