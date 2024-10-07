@@ -165,7 +165,7 @@ This Django project provides two API endpoints to manage call and message usage 
 
 #### /create/usage/message/
 
-- triggers the message_usage function, which retrieves message usage data from the MessageUsage table.
+- Triggers the message_usage function, which retrieves message usage data from the MessageUsage table.
 - Retrieves chargeItemUuid by calling the get_charge_item_uuid_by_order_id function using orderId and itemName.
 - Uses order_usage_add to add the usage data to the exsited system via the SDK.
 
