@@ -70,6 +70,8 @@ def fetch_call_usage():
             charge_item_uuids[(order_id, item_name)] = charge_item_uuid
 
         call_usage_list = []
+        unique_orders = set()
+
         for row in rows:
             call_id, call_start, call_duration, call_destination, call_type, item_name, order_id = row
             call_end = call_start + timedelta(seconds=call_duration)
@@ -79,6 +81,9 @@ def fetch_call_usage():
                                                start_time=call_start.strftime('%Y-%m-%d %H:%M:%S'),
                                                end_time=call_end.strftime('%Y-%m-%d %H:%M:%S'),
                                                charging_period=charging_period)
+
+           
+
 
             response = order_service.order_usage_add(call_usage_data)
             call_usage_entry = {
