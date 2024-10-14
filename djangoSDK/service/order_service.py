@@ -8,7 +8,6 @@ from tests.common.common_data import CommonData
 
 class OrderService:
     def __init__(self, exsited_service: ExsitedService):
-
         self.exsited_service = exsited_service
 
     def get_charge_item_uuid_by_order_id(self, order_id, item_name):
@@ -31,11 +30,20 @@ class OrderService:
         try:
             response = sdk.order.add_usage(request_data=request_data)
             if response:
-                return asdict(response)
+                return {
+                    "status": "success",
+                    "data": asdict(response)
+                }
             else:
-                return "error"
+                return {
+                    "status": "error",
+                    "message": "No response received from SDK"
+                }
         except ABException as ab:
-            error_code = None
+            error_message = None
             if ab.get_errors() and "errors" in ab.raw_response:
-                error_code = ab.raw_response["errors"][0]
-            return error_code
+                error_message = ab.raw_response["errors"][0]
+            return {
+                "status": "error",
+                "message": error_message,
+            }
