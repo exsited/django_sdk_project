@@ -1,4 +1,3 @@
-from dataclasses import asdict
 import MySQLdb
 from datetime import timedelta, datetime
 import calendar
@@ -25,7 +24,7 @@ def update_status_to_active(record_id, column_name, table_name):
         cursor.execute(
             f"""
                 UPDATE {table_name}
-                SET Status = 'active'
+                SET Status = 'ACTIVE'
                 WHERE {column_name} = {record_id}
                 """,
         )
@@ -75,7 +74,7 @@ def fetch_call_usage():
             SELECT CallID, CallStart, CallDurationSec, CallDestination, CallType, ItemName, OrderID, 
                    ChargingPeriodStart, Status 
             FROM CallUsage 
-            WHERE  Status = 'inactive'
+            WHERE  Status = 'INACTIVE'
             """
         )
 
@@ -146,7 +145,7 @@ def fetch_message_usage():
             """
             SELECT *
             FROM MessageUsage 
-            WHERE Status = 'inactive'
+            WHERE Status = 'INACTIVE'
             """
         )
         rows = cursor.fetchall()
