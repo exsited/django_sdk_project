@@ -36,16 +36,8 @@ def update_status_to_active(record_id, column_name, table_name):
         db.close()
 
 
-def calculate_charging_period(start_date):
-    next_month = start_date.month + 1 if start_date.month < 12 else 1
-    next_year = start_date.year if start_date.month < 12 else start_date.year + 1
-
-    last_day_of_next_month = calendar.monthrange(next_year, next_month)[1]
-
-    end_day = min(start_date.day, last_day_of_next_month)
-    end_of_period = datetime(next_year, next_month, end_day) - timedelta(days=1)
-
-    charging_period = f"{start_date.strftime('%Y-%m-%d')}-{end_of_period.strftime('%Y-%m-%d')}"
+def calculate_charging_period(start_date, end_date):
+    charging_period = f"{start_date.strftime('%Y-%m-%d')}-{end_date.strftime('%Y-%m-%d')}"
 
     return charging_period
 
@@ -72,7 +64,7 @@ def fetch_call_usage():
         cursor.execute(
             """
             SELECT CallID, CallStart, CallDurationSec, CallDestination, CallType, ItemName, OrderID, 
-                   ChargingPeriodStart, Status 
+                   ChargingPeriodStart, ChargingPeriodEnd, Status 
             FROM CallUsage 
             WHERE  Status = 'INACTIVE'
             """
@@ -86,7 +78,7 @@ def fetch_call_usage():
 
         for row in rows:
             (call_id, call_start, call_duration, call_destination, call_type, item_name, order_id,
-             charging_period_start, status) = row
+             charging_period_start, charging_period_end, status) = row
             unique_orders.add((order_id, item_name))
 
         charge_item_uuids = {}
@@ -97,9 +89,9 @@ def fetch_call_usage():
         call_usage_list = []
         for row in rows:
             (call_id, call_start, call_duration, call_destination, call_type, item_name, order_id,
-             charging_period_start, status) = row
+             charging_period_start, charging_period_end, status) = row
             call_end = call_start + timedelta(seconds=call_duration)
-            charging_period = calculate_charging_period(charging_period_start)
+            charging_period = calculate_charging_period(charging_period_start, charging_period_end)
 
             call_usage_data = create_usage_dto(charge_item_uuid=charge_item_uuids[(order_id, item_name)], quantity="1",
                                                start_time=call_start.strftime('%Y-%m-%d %H:%M:%S'),
@@ -155,9 +147,9 @@ def fetch_message_usage():
         order_service = OrderService(exsited_service)
 
         for row in rows:
-            (message_id, billing_period, messages_sent, charging_period_start, included_messages, billable_messages,
-             item_name, order_id, usage_custom_attribute1, usage_custom_attribute2, usage_custom_attribute3,
-             status) = row
+            (message_id, sent_date, messages_sent, charging_period_start, charging_period_end, included_messages,
+             billable_messages, item_name, order_id, usage_custom_attribute1, usage_custom_attribute2,
+             usage_custom_attribute3, status) = row
             unique_orders.add((order_id, item_name))
 
         charge_item_uuids = {}
@@ -167,19 +159,19 @@ def fetch_message_usage():
 
         message_usage_list = []
         for row in rows:
-            (message_id, billing_period, messages_sent, charging_period_start,
+            (message_id, sent_date, messages_sent, charging_period_start, charging_period_end,
              included_messages, billable_messages, item_name, order_id, usage_custom_attribute1,
              usage_custom_attribute2, usage_custom_attribute3, status) = row
 
-            charging_period = calculate_charging_period(charging_period_start)
+            charging_period = calculate_charging_period(charging_period_start,charging_period_end)
 
             message_usage_data = create_usage_dto(charge_item_uuid=charge_item_uuids[(order_id, item_name)],
                                                   quantity=str(billable_messages),
-                                                  start_time=billing_period.strftime('%Y-%m-%d %H:%M:%S'),
+                                                  start_time=sent_date.strftime('%Y-%m-%d %H:%M:%S'),
                                                   end_time=datetime(
-                                                      billing_period.year,
-                                                      billing_period.month,
-                                                      billing_period.day,
+                                                      sent_date.year,
+                                                      sent_date.month,
+                                                      sent_date.day,
                                                       23, 59, 59
                                                   ).strftime('%Y-%m-%d %H:%M:%S'),
                                                   charging_period=charging_period)
@@ -197,8 +189,8 @@ def fetch_message_usage():
                     "response": response.get("message"),
                     "charge_item_uuid": charge_item_uuids[(order_id, item_name)],
                     "quantity": billable_messages,
-                    "start_time": billing_period.strftime('%Y-%m-%d %H:%M:%S'),
-                    "end_time": billing_period.strftime('%Y-%m-%d %H:%M:%S'),
+                    "start_time": sent_date.strftime('%Y-%m-%d %H:%M:%S'),
+                    "end_time": sent_date.strftime('%Y-%m-%d %H:%M:%S'),
                     "type": "INCREMENTAL",
                     "charging_period": charging_period
                 }
