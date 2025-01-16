@@ -1,4 +1,4 @@
-from ab_py.exsited.exsited_sdk import ExsitedSDK
+from exsited.exsited.exsited_sdk import ExsitedSDK
 from tests.common.common_data import CommonData
 
 
