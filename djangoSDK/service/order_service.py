@@ -1,7 +1,7 @@
 from dataclasses import asdict
 
-from ab_py.common.ab_exception import ABException
-from ab_py.exsited.exsited_sdk import ExsitedSDK
+from exsited.common.ab_exception import ABException
+from exsited.exsited.exsited_sdk import ExsitedSDK
 from service.exsited_service import ExsitedService
 from tests.common.common_data import CommonData
 
