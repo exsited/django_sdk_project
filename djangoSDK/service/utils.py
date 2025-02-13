@@ -135,9 +135,11 @@ def fetch_message_usage():
     try:
         cursor.execute(
             """
-            SELECT *
-            FROM MessageUsage 
-            WHERE Status = 'INACTIVE'
+             SELECT ID, BillingPeriod, MessagesSent, ChargingPeriodStart, ChargingPeriodEnd, 
+                    IncludedMessages, BillableMessages, ItemName, OrderID, UsageCustomAttribute1, 
+                    UsageCustomAttribute2, UsageCustomAttribute3, Status  
+                    FROM MessageUsage
+                    WHERE Status = 'INACTIVE'
             """
         )
         rows = cursor.fetchall()
