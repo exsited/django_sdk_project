@@ -9,15 +9,14 @@ from service.order_service import OrderService
 
 def connect_to_db():
     return MySQLdb.connect(
-        host="",
-        user="",
+        host="127.0.0.1",
+        user="root",
         passwd="",
-        db=""
+        db="call_service"
     )
 
 
 def update_status_to_active(record_id, column_name, table_name):
-
     db = connect_to_db()
     cursor = db.cursor()
     try:
@@ -42,16 +41,15 @@ def calculate_charging_period(start_date, end_date):
     return charging_period
 
 
-def create_usage_dto(charge_item_uuid: str, quantity: str, start_time: str, end_time: str, charging_period: str):
-    usage_data = UsageCreateDTO(
-        usage=UsageDataDTO(chargeItemUuid=charge_item_uuid,
-                           quantity=quantity,
-                           startTime=start_time,
-                           endTime=end_time,
-                           type="INCREMENTAL",
-                           chargingPeriod=charging_period
-                           )
-    )
+def create_usage_dto(charge_item_uuid: str, quantity: str, start_time: str, end_time: str, charging_period: str, usageReference:str):
+    usage_data = UsageDataDTO(chargeItemUuid=charge_item_uuid,
+                              quantity=quantity,
+                              startTime=start_time,
+                              endTime=end_time,
+                              type="INCREMENTAL",
+                              chargingPeriod=charging_period,
+                              usageReference=usageReference
+                              )
 
     return usage_data
 
@@ -63,8 +61,8 @@ def fetch_call_usage():
     try:
         cursor.execute(
             """
-            SELECT CallID, CallStart, CallDurationSec, CallDestination, CallType, ItemName, OrderID, 
-                   ChargingPeriodStart, ChargingPeriodEnd, Status 
+            SELECT ID, CallStart, CallDurationSec, CallDestination, CallType, ItemName, OrderID, 
+                   ChargingPeriodStart, ChargingPeriodEnd, Status, ReferenceUUID 
             FROM CallUsage 
             WHERE  Status = 'INACTIVE'
             """
@@ -72,14 +70,16 @@ def fetch_call_usage():
 
         rows = cursor.fetchall()
         unique_orders = set()
+        reference_uuid_map = {}
 
         exsited_service = ExsitedService()
         order_service = OrderService(exsited_service)
 
         for row in rows:
             (call_id, call_start, call_duration, call_destination, call_type, item_name, order_id,
-             charging_period_start, charging_period_end, status) = row
+             charging_period_start, charging_period_end, status, reference_uuid) = row
             unique_orders.add((order_id, item_name))
+            reference_uuid_map[reference_uuid] = call_id
 
         charge_item_uuids = {}
         for order_id, item_name in unique_orders:
@@ -89,39 +89,51 @@ def fetch_call_usage():
         call_usage_list = []
         for row in rows:
             (call_id, call_start, call_duration, call_destination, call_type, item_name, order_id,
-             charging_period_start, charging_period_end, status) = row
+             charging_period_start, charging_period_end, status, reference_uuid) = row
             call_end = call_start + timedelta(seconds=call_duration)
             charging_period = calculate_charging_period(charging_period_start, charging_period_end)
 
             call_usage_data = create_usage_dto(charge_item_uuid=charge_item_uuids[(order_id, item_name)], quantity="1",
                                                start_time=call_start.strftime('%Y-%m-%d %H:%M:%S'),
                                                end_time=call_end.strftime('%Y-%m-%d %H:%M:%S'),
-                                               charging_period=charging_period)
+                                               charging_period=charging_period,
+                                               usageReference=reference_uuid)
 
-            response = order_service.order_usage_add(call_usage_data)
+            call_usage_list.append(call_usage_data)
+            # response = order_service.order_usage_add(call_usage_data)
+            #
+            # if response.get('status') == "success":
+            #     update_status_to_active(record_id=call_id, column_name='CallID', table_name='CallUsage')
+            #     call_usage_entry = {
+            #         "status": response.get("status"),
+            #         "data": response.get("data"),
+            #
+            #     }
+            # else:
+            #     call_usage_entry = {
+            #         "status": response.get("status"),
+            #         "response": response.get("message"),
+            #         "charge_item_uuid": charge_item_uuids[(order_id, item_name)],
+            #         "quantity": 1,
+            #         "start_time": call_start.strftime('%Y-%m-%d %H:%M:%S'),
+            #         "end_time": call_end.strftime('%Y-%m-%d %H:%M:%S'),
+            #         "type": "INCREMENTAL",
+            #         "charging_period": charging_period
+            #     }
+        # print(call_usage_list)
+        response = order_service.order_usages_add(call_usage_list)
+        # if response.get('success'):
+        #
+        #     update_status_to_active(record_id=call_id, column_name='CallID', table_name='CallUsage')
+        #     call_usage_entry = {
+        #         "status": response.get("status"),
+        #         "data": response.get("data"),
+        #
+        #     }
+        # print(response)
+        # call_usage_list.append(call_usage_entry)
 
-            if response.get('status') == "success":
-                update_status_to_active(record_id=call_id, column_name='CallID', table_name='CallUsage')
-                call_usage_entry = {
-                    "status": response.get("status"),
-                    "data": response.get("data"),
-
-                }
-            else:
-                call_usage_entry = {
-                    "status": response.get("status"),
-                    "response": response.get("message"),
-                    "charge_item_uuid": charge_item_uuids[(order_id, item_name)],
-                    "quantity": 1,
-                    "start_time": call_start.strftime('%Y-%m-%d %H:%M:%S'),
-                    "end_time": call_end.strftime('%Y-%m-%d %H:%M:%S'),
-                    "type": "INCREMENTAL",
-                    "charging_period": charging_period
-                }
-
-            call_usage_list.append(call_usage_entry)
-
-        return call_usage_list
+        return response
 
     finally:
         cursor.close()
@@ -137,7 +149,7 @@ def fetch_message_usage():
             """
              SELECT ID, BillingPeriod, MessagesSent, ChargingPeriodStart, ChargingPeriodEnd, 
                     IncludedMessages, BillableMessages, ItemName, OrderID, UsageCustomAttribute1, 
-                    UsageCustomAttribute2, UsageCustomAttribute3, Status  
+                    UsageCustomAttribute2, UsageCustomAttribute3, Status,ReferenceUUID  
                     FROM MessageUsage
                     WHERE Status = 'INACTIVE'
             """
@@ -151,7 +163,7 @@ def fetch_message_usage():
         for row in rows:
             (message_id, sent_date, messages_sent, charging_period_start, charging_period_end, included_messages,
              billable_messages, item_name, order_id, usage_custom_attribute1, usage_custom_attribute2,
-             usage_custom_attribute3, status) = row
+             usage_custom_attribute3, status, reference_uuid) = row
             unique_orders.add((order_id, item_name))
 
         charge_item_uuids = {}
@@ -159,13 +171,13 @@ def fetch_message_usage():
             charge_item_uuid = order_service.get_charge_item_uuid_by_order_id(order_id, item_name)
             charge_item_uuids[(order_id, item_name)] = charge_item_uuid
 
-        message_usage_list = []
+        message_usages_list = []
         for row in rows:
             (message_id, sent_date, messages_sent, charging_period_start, charging_period_end,
              included_messages, billable_messages, item_name, order_id, usage_custom_attribute1,
-             usage_custom_attribute2, usage_custom_attribute3, status) = row
+             usage_custom_attribute2, usage_custom_attribute3, status, reference_uuid) = row
 
-            charging_period = calculate_charging_period(charging_period_start,charging_period_end)
+            charging_period = calculate_charging_period(charging_period_start, charging_period_end)
 
             message_usage_data = create_usage_dto(charge_item_uuid=charge_item_uuids[(order_id, item_name)],
                                                   quantity=str(billable_messages),
@@ -176,30 +188,34 @@ def fetch_message_usage():
                                                       sent_date.day,
                                                       23, 59, 59
                                                   ).strftime('%Y-%m-%d %H:%M:%S'),
-                                                  charging_period=charging_period)
+                                                  charging_period=charging_period,
+                                                  usageReference=reference_uuid
+                                                  )
 
-            response = order_service.order_usage_add(message_usage_data)
-            if response.get('status') == "success":
-                update_status_to_active(record_id=message_id, column_name='ID', table_name='MessageUsage')
-                message_usage_entry = {
-                    "status": response.get("status"),
-                    "data": response.get("data"),
-                }
-            else:
-                message_usage_entry = {
-                    "status": response.get("status"),
-                    "response": response.get("message"),
-                    "charge_item_uuid": charge_item_uuids[(order_id, item_name)],
-                    "quantity": billable_messages,
-                    "start_time": sent_date.strftime('%Y-%m-%d %H:%M:%S'),
-                    "end_time": sent_date.strftime('%Y-%m-%d %H:%M:%S'),
-                    "type": "INCREMENTAL",
-                    "charging_period": charging_period
-                }
+            message_usages_list.append(message_usage_data)
+        # print(message_usages_list)
+        response = order_service.order_usages_add(message_usages_list)
+            # if response.get('status') == "success":
+            #     update_status_to_active(record_id=message_id, column_name='ID', table_name='MessageUsage')
+            #     message_usage_entry = {
+            #         "status": response.get("status"),
+            #         "data": response.get("data"),
+            #     }
+            # else:
+            #     message_usage_entry = {
+            #         "status": response.get("status"),
+            #         "response": response.get("message"),
+            #         "charge_item_uuid": charge_item_uuids[(order_id, item_name)],
+            #         "quantity": billable_messages,
+            #         "start_time": sent_date.strftime('%Y-%m-%d %H:%M:%S'),
+            #         "end_time": sent_date.strftime('%Y-%m-%d %H:%M:%S'),
+            #         "type": "INCREMENTAL",
+            #         "charging_period": charging_period
+            #     }
 
-            message_usage_list.append(message_usage_entry)
+        # message_usage_list.append(message_usage_entry)
 
-        return message_usage_list
+        return response
 
     finally:
         cursor.close()

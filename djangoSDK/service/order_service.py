@@ -1,7 +1,9 @@
 from dataclasses import asdict
 
 from exsited.common.ab_exception import ABException
+from exsited.common.sdk_conf import SDKConfig
 from exsited.exsited.exsited_sdk import ExsitedSDK
+from exsited.exsited.order.dto.usage_dto import MultipleUsageCreateDTO
 from service.exsited_service import ExsitedService
 from tests.common.common_data import CommonData
 
@@ -29,6 +31,35 @@ class OrderService:
 
         try:
             response = sdk.order.add_usage(request_data=request_data)
+            if response:
+                return {
+                    "status": "success",
+                    "data": asdict(response)
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": "No response received from SDK"
+                }
+        except ABException as ab:
+            error_message = None
+            if ab.get_errors() and "errors" in ab.raw_response:
+                error_message = ab.raw_response["errors"][0]
+            return {
+                "status": "error",
+                "message": error_message,
+            }
+
+    def order_usages_add(self, request_data):
+        # SDKConfig.PRINT_REQUEST_DATA = True
+        SDKConfig.PRINT_RAW_RESPONSE = True
+        sdk = self.exsited_service.get_sdk()
+
+        try:
+            request_data = MultipleUsageCreateDTO(
+                usages=request_data
+            )
+            response = sdk.order.add_multiple_usage(request_data=request_data)
             if response:
                 return {
                     "status": "success",
