@@ -15,24 +15,24 @@ ALLOWED_COLUMNS = {"ID"}
 
 def connect_to_db():
     return MySQLdb.connect(
-        host="",
-        user="",
+        host="127.0.0.1",
+        user="root",
         passwd="",
-        db=""
+        db="call_service"
     )
 
 
 def calculate_charging_period(start_date, end_date):
     if not start_date or not end_date:
         logger.warning("Charging period start or end date is None.")
-        return "Unknown Period"
+        return None
 
     return f"{start_date.strftime('%Y-%m-%d')}-{end_date.strftime('%Y-%m-%d')}"
 
 
 def create_usage_dto(charge_item_uuid, quantity, start_time, end_time, charging_period, usage_reference):
     if not charge_item_uuid:
-        logger.error("Charge item UUID is missing.")
+        logger.error(f"Charge item UUID is missing for reference: {usage_reference}")
         return None
 
     return UsageDataDTO(
@@ -95,7 +95,7 @@ def fetch_call_usage():
             (call_id, call_start, call_duration, call_destination, call_type, item_name, order_id,
              charging_period_start, charging_period_end, status, reference_uuid) = row
 
-            if not call_start or not charging_period_start or not charging_period_end:
+            if not call_start or not charging_period_start or not charging_period_end or not item_name or not order_id:
                 logger.warning(f"Skipping record {call_id} due to missing date values.")
                 continue
 
@@ -212,7 +212,7 @@ def fetch_message_usage():
              billable_messages, item_name, order_id, usage_custom_attribute1, usage_custom_attribute2,
              usage_custom_attribute3, status, reference_uuid) = row
 
-            if not sent_date or not charging_period_start or not charging_period_end:
+            if not sent_date or not charging_period_start or not charging_period_end or not item_name or not order_id:
                 logger.warning(f"Skipping record {message_id} due to missing date values.")
                 continue
 
@@ -233,9 +233,9 @@ def fetch_message_usage():
             charging_period = calculate_charging_period(charging_period_start, charging_period_end)
 
             message_usage_data = create_usage_dto(
-                charge_item_uuid=charge_item_uuids.get((order_id, item_name)),  # Prevent KeyError
+                charge_item_uuid=charge_item_uuids.get((order_id, item_name)),
                 quantity=str(billable_messages),
-                start_time=sent_date.strftime('%Y-%m-%d %H:%M:%S') if sent_date else "Unknown",
+                start_time=sent_date.strftime('%Y-%m-%d %H:%M:%S'),
                 end_time=datetime(
                     sent_date.year if sent_date else 1970,
                     sent_date.month if sent_date else 1,
