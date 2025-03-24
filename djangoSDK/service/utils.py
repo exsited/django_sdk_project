@@ -15,10 +15,10 @@ ALLOWED_COLUMNS = {"ID"}
 
 def connect_to_db():
     return MySQLdb.connect(
-        host="127.0.0.1",
-        user="root",
+        host="",
+        user="",
         passwd="",
-        db="call_service"
+        db=""
     )
 
 
@@ -78,7 +78,6 @@ def fetch_call_usage():
                        ChargingPeriodStart, ChargingPeriodEnd, Status, ReferenceUUID 
                 FROM CallUsage 
                 WHERE Status = 'INACTIVE'
-                LIMIT 285
             """)
             rows = cursor.fetchall()
 
@@ -145,7 +144,38 @@ def fetch_call_usage():
             if success_call_ids:
                 update_status_to_active(record_list=success_call_ids, column_name="ID", table_name="CallUsage")
 
-        return response
+        success_data = [
+            {
+                "charge_item_uuid": usage.get("chargeItemUuid"),
+                "charging_period": usage.get("chargingPeriod"),
+                "quantity": usage.get("quantity"),
+                "start_time": usage.get("startTime"),
+                "end_time": usage.get("endTime"),
+                "type": usage.get("type"),
+                "usage_reference": usage.get("usageReference")
+            }
+            for usage in response.get("data", {}).get("success", [])
+        ]
+
+        failed_data = [
+            {
+                "charge_item_uuid": usage.get("chargeItemUuid"),
+                "charging_period": usage.get("chargingPeriod"),
+                "quantity": usage.get("quantity"),
+                "start_time": usage.get("startTime"),
+                "end_time": usage.get("endTime"),
+                "type": usage.get("type"),
+                "usage_reference": usage.get("usageReference")
+            }
+            for usage in response.get("data", {}).get("failed", [])
+        ]
+
+        return {
+            "data": {
+                "success": success_data,
+                "failed": failed_data
+            }
+        }
 
     except MySQLdb.Error as e:
         logger.error(f"Database error in fetch_call_usage: {e}")
@@ -232,7 +262,38 @@ def fetch_message_usage():
             if success_message_ids:
                 update_status_to_active(record_list=success_message_ids, column_name="ID", table_name="MessageUsage")
 
-        return response
+        success_data = [
+            {
+                "charge_item_uuid": usage.get("chargeItemUuid"),
+                "charging_period": usage.get("chargingPeriod"),
+                "quantity": usage.get("quantity"),
+                "start_time": usage.get("startTime"),
+                "end_time": usage.get("endTime"),
+                "type": usage.get("type"),
+                "usage_reference": usage.get("usageReference")
+            }
+            for usage in response.get("data", {}).get("success", [])
+        ]
+
+        failed_data = [
+            {
+                "charge_item_uuid": usage.get("chargeItemUuid"),
+                "charging_period": usage.get("chargingPeriod"),
+                "quantity": usage.get("quantity"),
+                "start_time": usage.get("startTime"),
+                "end_time": usage.get("endTime"),
+                "type": usage.get("type"),
+                "usage_reference": usage.get("usageReference")
+            }
+            for usage in response.get("data", {}).get("failed", [])
+        ]
+
+        return {
+            "data": {
+                "success": success_data,
+                "failed": failed_data
+            }
+        }
 
     except MySQLdb.Error as e:
         logger.error(f"Database error in fetch_message_usage: {e}")
