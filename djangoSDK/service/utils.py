@@ -9,17 +9,67 @@ from service.order_service import OrderService
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+CHUNK_SIZE = 200
 ALLOWED_TABLES = {"CallUsage", "MessageUsage"}
 ALLOWED_COLUMNS = {"ID"}
 
 
 def connect_to_db():
     return MySQLdb.connect(
-        host="127.0.0.1",
-        user="root",
+        host="",
+        user="",
         passwd="",
-        db="call_service"
+        db=""
     )
+
+
+def process_usages_in_chunks(order_service, usage_list, reference_uuid_map, table_name):
+    success_data = []
+    failed_data = []
+
+    for i in range(0, len(usage_list), CHUNK_SIZE):
+        success_ids = []
+        chunk = usage_list[i:i + CHUNK_SIZE]
+        response = order_service.order_usages_add(chunk)
+        logger.info(f"Chunk {i // CHUNK_SIZE + 1}")
+
+        if response.get("status") == "success" and "data" in response:
+            success_ids.extend(
+                reference_uuid_map[usage.get("usageReference")]
+                for usage in response["data"].get("success", [])
+                if usage.get("usageReference") in reference_uuid_map
+            )
+            if success_ids:
+                update_status_to_active(success_ids, "ID", table_name)
+            success_data.extend({
+                                    "charge_item_uuid": usage.get("chargeItemUuid"),
+                                    "charging_period": usage.get("chargingPeriod"),
+                                    "quantity": usage.get("quantity"),
+                                    "start_time": usage.get("startTime"),
+                                    "end_time": usage.get("endTime"),
+                                    "type": usage.get("type"),
+                                    "usage_reference": usage.get("usageReference")
+                                }
+                                for usage in response.get("data", {}).get("success", [])
+                                )
+            failed_data.extend({
+                                   "charge_item_uuid": usage.get("chargeItemUuid"),
+                                   "charging_period": usage.get("chargingPeriod"),
+                                   "quantity": usage.get("quantity"),
+                                   "start_time": usage.get("startTime"),
+                                   "end_time": usage.get("endTime"),
+                                   "type": usage.get("type"),
+                                   "usage_reference": usage.get("usageReference")
+                               }
+                               for usage in response.get("data", {}).get("failed", []))
+        print(f"successful items: {len(response.get("data", {}).get("success", []))}")
+        print(f"failed items: {len(response.get("data", {}).get("failed", []))}")
+    return {
+        "data": {
+            "success": success_data,
+            "failed": failed_data
+        }
+    }
 
 
 def calculate_charging_period(start_date, end_date):
@@ -130,52 +180,8 @@ def fetch_call_usage():
 
             if usage_data:
                 call_usage_list.append(usage_data)
-        print("OK")
-        response = order_service.order_usages_add(call_usage_list)
-        logger.info(f"API Response: {response}")
-
-        if response.get("status") == "success" and "data" in response:
-            success_call_ids = [
-                reference_uuid_map[usage.get("usageReference")]
-                for usage in response["data"].get("success", [])
-                if usage.get("usageReference") in reference_uuid_map
-            ]
-
-            if success_call_ids:
-                update_status_to_active(record_list=success_call_ids, column_name="ID", table_name="CallUsage")
-
-        success_data = [
-            {
-                "charge_item_uuid": usage.get("chargeItemUuid"),
-                "charging_period": usage.get("chargingPeriod"),
-                "quantity": usage.get("quantity"),
-                "start_time": usage.get("startTime"),
-                "end_time": usage.get("endTime"),
-                "type": usage.get("type"),
-                "usage_reference": usage.get("usageReference")
-            }
-            for usage in response.get("data", {}).get("success", [])
-        ]
-
-        failed_data = [
-            {
-                "charge_item_uuid": usage.get("chargeItemUuid"),
-                "charging_period": usage.get("chargingPeriod"),
-                "quantity": usage.get("quantity"),
-                "start_time": usage.get("startTime"),
-                "end_time": usage.get("endTime"),
-                "type": usage.get("type"),
-                "usage_reference": usage.get("usageReference")
-            }
-            for usage in response.get("data", {}).get("failed", [])
-        ]
-
-        return {
-            "data": {
-                "success": success_data,
-                "failed": failed_data
-            }
-        }
+        print(f"total usage data: {len(call_usage_list)}")
+        return process_usages_in_chunks(order_service, call_usage_list, reference_uuid_map, "CallUsage")
 
     except MySQLdb.Error as e:
         logger.error(f"Database error in fetch_call_usage: {e}")
@@ -249,51 +255,7 @@ def fetch_message_usage():
             if message_usage_data:
                 message_usages_list.append(message_usage_data)
 
-        response = order_service.order_usages_add(message_usages_list)
-        logger.info(f"API Response: {response}")
-
-        if response.get("status") == "success" and "data" in response:
-            success_message_ids = [
-                reference_uuid_map[usage.get("usageReference")]
-                for usage in response["data"].get("success", [])
-                if usage.get("usageReference") in reference_uuid_map
-            ]
-
-            if success_message_ids:
-                update_status_to_active(record_list=success_message_ids, column_name="ID", table_name="MessageUsage")
-
-        success_data = [
-            {
-                "charge_item_uuid": usage.get("chargeItemUuid"),
-                "charging_period": usage.get("chargingPeriod"),
-                "quantity": usage.get("quantity"),
-                "start_time": usage.get("startTime"),
-                "end_time": usage.get("endTime"),
-                "type": usage.get("type"),
-                "usage_reference": usage.get("usageReference")
-            }
-            for usage in response.get("data", {}).get("success", [])
-        ]
-
-        failed_data = [
-            {
-                "charge_item_uuid": usage.get("chargeItemUuid"),
-                "charging_period": usage.get("chargingPeriod"),
-                "quantity": usage.get("quantity"),
-                "start_time": usage.get("startTime"),
-                "end_time": usage.get("endTime"),
-                "type": usage.get("type"),
-                "usage_reference": usage.get("usageReference")
-            }
-            for usage in response.get("data", {}).get("failed", [])
-        ]
-
-        return {
-            "data": {
-                "success": success_data,
-                "failed": failed_data
-            }
-        }
+        return process_usages_in_chunks(order_service, message_usages_list, reference_uuid_map, "MessageUsage")
 
     except MySQLdb.Error as e:
         logger.error(f"Database error in fetch_message_usage: {e}")
@@ -301,4 +263,3 @@ def fetch_message_usage():
         logger.exception(f"Unexpected error in fetch_message_usage: {e}")
 
     return {"status": "error", "message": "An error occurred while fetching message usage."}
-
