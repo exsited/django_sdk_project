@@ -16,20 +16,20 @@ def connect_to_db():
     )
 
 
-def update_status_to_active(record_id, column_name, table_name):
+def update_status_to_active(record_list, column_name, table_name):
     db = connect_to_db()
     cursor = db.cursor()
     try:
-        cursor.execute(
-            f"""
-                UPDATE {table_name}
-                SET Status = 'ACTIVE'
-                WHERE {column_name} = {record_id}
-                """,
-        )
+        record_list_str = ", ".join(["%s"] * len(record_list))
+        query = f"""
+            UPDATE {table_name}
+            SET Status = 'ACTIVE'
+            WHERE {column_name} IN ({record_list_str})
+        """
+        cursor.execute(query, tuple(record_list))
         db.commit()
     except Exception as e:
-        print(f"Error updating status to active for CallID {record_id}: {e}")
+        print(f"Error updating status to active for {record_list}: {e}")
     finally:
         cursor.close()
         db.close()
@@ -69,6 +69,9 @@ def fetch_call_usage():
         )
 
         rows = cursor.fetchall()
+        if not rows:
+            return {"status": "success", "message": "No inactive message usage records found."}
+
         unique_orders = set()
         reference_uuid_map = {}
 
@@ -100,38 +103,19 @@ def fetch_call_usage():
                                                usageReference=reference_uuid)
 
             call_usage_list.append(call_usage_data)
-            # response = order_service.order_usage_add(call_usage_data)
-            #
-            # if response.get('status') == "success":
-            #     update_status_to_active(record_id=call_id, column_name='CallID', table_name='CallUsage')
-            #     call_usage_entry = {
-            #         "status": response.get("status"),
-            #         "data": response.get("data"),
-            #
-            #     }
-            # else:
-            #     call_usage_entry = {
-            #         "status": response.get("status"),
-            #         "response": response.get("message"),
-            #         "charge_item_uuid": charge_item_uuids[(order_id, item_name)],
-            #         "quantity": 1,
-            #         "start_time": call_start.strftime('%Y-%m-%d %H:%M:%S'),
-            #         "end_time": call_end.strftime('%Y-%m-%d %H:%M:%S'),
-            #         "type": "INCREMENTAL",
-            #         "charging_period": charging_period
-            #     }
-        # print(call_usage_list)
         response = order_service.order_usages_add(call_usage_list)
-        # if response.get('success'):
-        #
-        #     update_status_to_active(record_id=call_id, column_name='CallID', table_name='CallUsage')
-        #     call_usage_entry = {
-        #         "status": response.get("status"),
-        #         "data": response.get("data"),
-        #
-        #     }
-        # print(response)
-        # call_usage_list.append(call_usage_entry)
+        print(response)
+        if response.get('status') == 'success' and 'data' in response:
+            success_call_ids = []
+            success_entries = response['data'].get('success', [])
+
+            for usage in success_entries:
+                usage_reference = usage.get('usageReference')
+                if usage_reference and usage_reference in reference_uuid_map:
+                    success_call_ids.append(reference_uuid_map[usage_reference])
+
+            if success_call_ids:
+                update_status_to_active(record_list=success_call_ids, column_name='ID', table_name='CallUsage')
 
         return response
 
@@ -155,16 +139,20 @@ def fetch_message_usage():
             """
         )
         rows = cursor.fetchall()
-        unique_orders = set()
+        if not rows:
+            return {"status": "success", "message": "No inactive message usage records found."}
 
+        unique_orders = set()
         exsited_service = ExsitedService()
         order_service = OrderService(exsited_service)
+        reference_uuid_map = {}
 
         for row in rows:
             (message_id, sent_date, messages_sent, charging_period_start, charging_period_end, included_messages,
              billable_messages, item_name, order_id, usage_custom_attribute1, usage_custom_attribute2,
              usage_custom_attribute3, status, reference_uuid) = row
             unique_orders.add((order_id, item_name))
+            reference_uuid_map[reference_uuid] = message_id
 
         charge_item_uuids = {}
         for order_id, item_name in unique_orders:
@@ -193,27 +181,18 @@ def fetch_message_usage():
                                                   )
 
             message_usages_list.append(message_usage_data)
-        # print(message_usages_list)
         response = order_service.order_usages_add(message_usages_list)
-            # if response.get('status') == "success":
-            #     update_status_to_active(record_id=message_id, column_name='ID', table_name='MessageUsage')
-            #     message_usage_entry = {
-            #         "status": response.get("status"),
-            #         "data": response.get("data"),
-            #     }
-            # else:
-            #     message_usage_entry = {
-            #         "status": response.get("status"),
-            #         "response": response.get("message"),
-            #         "charge_item_uuid": charge_item_uuids[(order_id, item_name)],
-            #         "quantity": billable_messages,
-            #         "start_time": sent_date.strftime('%Y-%m-%d %H:%M:%S'),
-            #         "end_time": sent_date.strftime('%Y-%m-%d %H:%M:%S'),
-            #         "type": "INCREMENTAL",
-            #         "charging_period": charging_period
-            #     }
+        if response.get('status') == 'success' and 'data' in response:
+            success_message_ids = []
+            success_entries = response['data'].get('success', [])
 
-        # message_usage_list.append(message_usage_entry)
+            for usage in success_entries:
+                usage_reference = usage.get('usageReference')
+                if usage_reference and usage_reference in reference_uuid_map:
+                    success_message_ids.append(reference_uuid_map[usage_reference])
+
+            if success_message_ids:
+                update_status_to_active(record_list=success_message_ids, column_name='ID', table_name='MessageUsage')
 
         return response
 

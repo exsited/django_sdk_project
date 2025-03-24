@@ -51,8 +51,6 @@ class OrderService:
             }
 
     def order_usages_add(self, request_data):
-        # SDKConfig.PRINT_REQUEST_DATA = True
-        SDKConfig.PRINT_RAW_RESPONSE = True
         sdk = self.exsited_service.get_sdk()
 
         try:
